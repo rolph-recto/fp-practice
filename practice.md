@@ -4,8 +4,7 @@ date: February 12, 2016
 fontsize: 8pt
 ---
 
-## Outline
-
+# Outline
 We'll be covering functional programming concepts that are common to
 both Haskell and OCaml (no monads or module types)
 
@@ -13,22 +12,70 @@ both Haskell and OCaml (no monads or module types)
 * Algebraic data types and pattern matching
 * Sorting algorithms and practice problems
 
-## Fold
+# OCaml vs. Haskell syntax
+OCaml:
+
+```OCaml
+[1;2;3;4] = 1::2::3::4::[]
+
+[1;2] @ [3;4] = [1;2;3;4]
+
+(* recursive functions must be declared with let rec, not let*)
+let rec f (x:'a) (y:'b) : 'c = 
+  match x with
+    val1 -> ...
+  | val2 -> ...
+;;
+
+"here's how you " ^ "put things together"
+
+(fun x -> x + 2)
+```
+
+# OCaml vs. Haskell syntax
+Haskell:
+
+```Haskell
+[1,2,3,4] = 1:2:3:4:[]
+
+[1,2] ++ [3,4]
+
+-- recursive functions are declared the same
+-- way as nonrecursive functions
+f :: a -> b -> c -- type annotations are separate
+f x y = 
+  case x of
+    val1 -> ...
+    val2 -> ...
+
+-- equivalent to pattern matching above
+f (val1) y = ...
+f (val2) y = ...
+
+"here's how you " ++ "put things together"
+(\x -> x + 2)
+```
+
+
+
+# Fold
 In OCaml:
 
 ```Ocaml
-fold_right :: ('a -> 'b -> 'b) -> 'a list -> 'b -> 'b
-fold_right f acc l = match l with
-  [] -> acc
-| x::xs -> f x (fold_right f acc xs) ;;
+let rec fold_right (f:'a -> 'b -> 'b) (l:'a list) (acc:'b) : 'b =
+  match l with
+    [] -> acc
+  | x::xs -> f x (fold_right f xs acc)
+;;
 
-fold_left :: ('b -> 'a -> 'b) -> 'b -> 'a list -> 'b
-fold_left f acc l = match l with
-  [] -> acc
-| x::xs -> f (fold_left f acc xs) x ;;
+let rec fold_left (f:'b -> 'a -> 'b) (acc:'b) (l:'a list) : 'b =
+  match l with
+    [] -> acc
+  | x::xs -> fold_left f (f acc x) xs
+;;
 ```
 
-## Fold
+# Fold
 In Haskell:
 
 ```Haskell 
@@ -38,11 +85,16 @@ foldr f acc (x:xs) = f x (foldr f acc xs)
 
 foldl :: (b -> a -> b) -> b -> [a] -> b
 foldl f acc [] = acc
-foldl f acc (x:xs) = f (foldl f acc xs) x
+foldl f acc (x:xs) = foldl f (f acc x) xs
 ```
 
-## Fold
+# Fold
 Find the sum of even numbers in a list.
+
+In Ocaml:
+```OCaml
+fold_right (fun x acc -> if x mod 2 == 0 then x+acc else acc) [1,2,3,4,5] 0
+```
 
 In Haskell:
 ```Haskell
@@ -50,7 +102,6 @@ foldr (\x acc -> if x `mod` 2 == 0 then x+acc else acc) 0 [1,2,3,4,5]
 ```
 
 In Python (without using `reduce`):
-
 ```Python
 sum = 0 # sum is the accumulator
 for n in [1,2,3,4,5]:
@@ -58,61 +109,113 @@ for n in [1,2,3,4,5]:
     sum += n
 ```
 
-## Fold Right vs. Fold Left
+# Fold Right vs. Fold Left
 ```Haskell 
 foldr (+) 0 [1,2,3,4,5] =
 1 + (2 + (3 + (4 + (5 + 0))))
 
-
 foldl (+) 0 [1,2,3,4,5] =
-((((0 + 5) + 4) + 3) + 2) + 1
+((((0 + 1) + 2) + 3) + 4) + 5
 ```
 
-## Fold Right vs. Fold Left
-Fold right is better to use sometimes to short-circuit evaluation; but
-in general which one to use depends on the associativity of the function
-you are folding. If `f` is left-associative, fold left; if right-associative,
-fold right.
+# Fold Right vs. Fold Left
+
+In Haskell:
+
+Since Haskell is **lazily evaluated**, you can sometimes short-circuit
+evaluation by paying attention to which parameter is being pattern matched.
 
 ```Haskell
 or :: Bool -> Bool -> Bool
 or True _  = True
 or False x = x
 
-foldr or [True,False,False] False =
-or True (foldr or [False,False] False) =
+foldr or False [True,False,False] =
+or True (foldr or False [False,False]) =
 True
 
 foldl or [True,False,False] False =
-or (foldr or [False,False] False) True = 
-or (or (foldr or [False] False) False) True = 
-or (or (or (foldr or [] False) False) False) True = 
-or (or (or False False) False) True = 
-or (or False False) True = 
-or False True = 
+foldl or [False, False] (or False True) =
+foldl or [False] (or (or False True) False) =
+foldl or [] (or (or (or False True) False) False) =
+(or (or (or False True) False) False) =
+(or (or True False) False) =
+(or True False) =
 True
 ```
 
-## From nothing, fold; from fold, everything
+# Fold Right vs. Fold Left
+
+Since OCaml is **eagerly evaluated** -- the interpreter evaluates the arguments
+before passing it to the function -- this function can't be short-circuited.
+
 ```OCaml
-let map f xs =
-  List.fold_right (fun x acc -> (f x)::acc) xs []
+let orfunc (x:bool) (y:bool) : bool =
+  match x with True -> true | False -> y ;;
 
-let filter f xs =
-  List.fold_right (fun x acc -> if f x then x::acc else acc) xs []
+fold_right orfunc [true;false;false] false =
+orfunc true (foldr orfunc [false;false] false) =
+orfunc true (orfunc false (foldr orfunc [false] false)) =
+orfunc true (orfunc false (orfunc false (foldr orfunc [] false))) =
+orfunc true (orfunc false (orfunc false false)) =
+orfunc true (orfunc false false) =
+orfunc true false =
+true
 
-let length xs =
-  List.fold_right (fun x acc -> acc + 1) xs 0
+fold_left orfunc false [true;false;false] =
+fold_left orfunc (orfunc false true) [false;false] =
+fold_left orfunc true [false;false] =
+fold_left orfunc (orfunc true false) [false] =
+fold_left orfunc true [false] =
+fold_left orfunc (orfunc true false) [] =
+fold_left orfunc true [] =
+true
 ```
 
-## Algebraic Data Types
+# From nothing, fold; from fold, everything
+```OCaml
+let map (f:'a -> 'b) (xs:'a list) : 'b list =
+  List.fold_right (fun x acc -> (f x)::acc) xs [] ;;
+
+let filter (f:'a -> bool) (xs:'a list) : 'a list =
+  List.fold_right (fun x acc -> if f x then x::acc else acc) xs [] ;;
+
+let length (xs:'a list) : int =
+  List.fold_right (fun x acc -> acc + 1) xs 0 ;;
+
+let reverse (xs:'a list) : 'a list =
+  List.fold_left (fun acc x -> x::acc) [] xs ;;
+```
+
+# From nothing, fold; from fold, everything
+In Haskell:
+
+```Haskell
+map :: (a -> b) -> [a] -> [b]
+map f xs = foldr (\x acc -> (f x):acc) [] xs
+
+filter :: (a -> Bool) -> [a] -> [a]
+filter f xs = foldr (\x acc -> if f x then x:acc else acc) [] xs
+
+length :: [a] -> Int
+length xs = foldr (\x acc -> acc + 1) 0 xs
+
+reverse :: [a] -> [a]
+reverse xs = foldl (\acc x -> x:acc) [] xs
+```
+
+# Algebraic Data Types
 * User-defined types
 * Can encode different variants ("subclasses") of a particular type
 * Can compactly encode recursive data structures
 * Can be parametrized with type variables (cf. Java generics)
 
-## Algebraic Data Types (ADTs)
+# Algebraic Data Types (ADTs)
 OCaml:
+
+* Each constructor can be paired with at most 1 type
+* `typename * typename * ...` is a *single tuple type*
+
 ```OCaml
 type typename =
   | Constructor1 of typename * typename ...
@@ -121,6 +224,9 @@ type typename =
 ```
 
 Haskell:
+
+* Each constructor can be paired with an arbitrary number of types
+
 ```Haskell
 data TypeName =
     Constructor1 TypeName TypeName ...
@@ -128,12 +234,18 @@ data TypeName =
   | Constructor3 TypeName TypeName ...
 ```
 
-## Lists
+
+
+Compare `Typename` to an **abstract base class** and `Constructor`s to
+**child classes**.
+
+# Lists
 OCaml:
 ```OCaml
 type 'a list =
   | Cons of 'a * ('a list)
   | Nil
+;;
 
 Cons (1, Cons (2, Cons (3, Nil))) = [1;2;3]
 ```
@@ -145,12 +257,14 @@ data List a = Cons a (List a) | Nil
 Cons 1 (Cons 2 (Cons 3 Nil)) = [1,2,3]
 ```
 
-## Pattern Matching
+Recall how `List` is implemented in Cool.
+
+# Pattern Matching
 * Like a `switch` statement in Java or C
 * Usually used to have separate cases between different constructors of
 an ADT and to have separate cases between empty/non-empty lists
 
-## Pattern Matching
+# Pattern Matching
 OCaml:
 ```OCaml
 let rec sum (l:int list) : int =
@@ -165,14 +279,16 @@ Haskell:
 sum :: List Int -> Int
 sum Nil = 0
 sum (Cons n tl) = n + sum tl
+
+sum = case l of Nil -> 0; Cons n tl -> n + sum tl
 ```
 
-## Binary Trees
+# Binary Trees
 In OCaml
 ```OCaml
-type 'a btree a =
+type 'a btree =
     Node of 'a * ('a btree) * ('a btree)
-  | Leaf 'a
+  | Leaf of 'a
   | NilLeaf
 ;;
 let rec preOrder (tree:'a btree) : 'a list = 
@@ -184,7 +300,7 @@ let rec preOrder (tree:'a btree) : 'a list =
 ;;
 ```
 
-## Binary Trees
+# Binary Trees
 In Haskell:
 ```Haskell
 data BTree a =
@@ -193,13 +309,14 @@ data BTree a =
   | NilLeaf
 
 preOrder :: BTree a -> [a]
+preOrder (NilLeaf) = []
 preOrder (Leaf x)  = [x]
 preOrder (Node x left right) =
   [x] ++ (preOrder left) ++ (preOrder right)
 ```
 
-## An Arithmetic Language
-Hint: Remember this for PA5!
+# An Arithmetic Language
+Hint: Remember this for PA3!
 
 ```OCaml
 type arith =
@@ -208,16 +325,17 @@ type arith =
   | Sub of arith * arith
   | Mul of arith * arith
 ;;
-eval (a:arith) : int = match a with
-  Val n -> n
-| Add (x,y) -> (eval x) + (eval y)
-| Sub (x,y) -> (eval x) - (eval y)
-| Mul (x,y) -> (eval x) * (eval y)
+
+let rec serializeArith (ast:arith) : string =
+  match ast with
+    Val n -> "int\n" ^ (string_of_int n) ^ "\n"
+  | Add (x,y) -> "add\n" ^ serializeArith x ^ serializeArith y
+  | Sub (x,y) -> "sub\n" ^ serializeArith x ^ serializeArith y
+  | Mul (x,y) -> "mul\n" ^ serializeArith x ^ serializeArith y
 ;;
-eval (Mul (Add (Val 2, Val 3), Val 4)) = 20 ;;
 ```
 
-## An Arithmetic Language
+# An Arithmetic Language
 In Haskell:
 
 ```Haskell
@@ -227,6 +345,29 @@ data Arith =
   | Sub Arith Arith
   | Mul Arith Arith
 
+serializeArith :: Arith -> String
+serializeArith (Val n) = "int\n" ++ show n
+serializeArith (Add x y) = "add\n" ++ serializeArith x ++ serializeArith y
+serializeArith (Sub x y) = "sub\n" ++ serializeArith x ++ serializeArith y
+serializeArith (Mul x y) = "mul\n" ++ serializeArith x ++ serializeArith y
+```
+
+# An Arithmetic Language
+Hint: Remember this for PA4-PA5!
+```OCaml
+let rec eval (a:arith) : int =
+  match a with
+    Val n -> n
+  | Add (x,y) -> (eval x) + (eval y)
+  | Sub (x,y) -> (eval x) - (eval y)
+  | Mul (x,y) -> (eval x) * (eval y)
+;;
+eval (Mul (Add (Val 2, Val 3), Val 4)) = 20 ;;
+```
+
+# An Arithmetic Language
+In Haskell:
+```Haskell
 eval :: Arith -> Int
 eval (Val n)   = n
 eval (Add x y) = (eval x) + (eval y)
@@ -236,14 +377,16 @@ eval (Mul x y) = (eval x) * (eval y)
 eval (Mul (Add (Val 2) (Val 3)) (Val 4)) = 20
 ```
 
-## Option Types
+# Option Types
 Useful for capturing failure in a function
 
 OCaml:
 ```OCaml
-type 'a option = | Some a | None ;;
+type 'a option =
+  | Some of 'a
+  | None ;;
 
-head (l:'a list) : 'a option =
+let head (l:'a list) : 'a option =
   match l with
     [] -> None
   | x::xs -> Some x ;;
@@ -253,20 +396,49 @@ Haskell:
 ```Haskell
 data Maybe a = Just a | Nothing
 
-head :: [a] -> Just a
+head :: [a] -> Maybe a
 head []     = Nothing
 head (x:xs) = Just x
 ```
 
-## Functional Programming Idioms
+# Functional Programming Idioms
 
-* Recursion, not iteration
+* Recursion and folding, not iteration
 * Many tiny functions instead of one big function
 * Keep track of state with parameters (accumulators)
+* Type annotations are your friend!
+
+# Type Annotations
+A lot of times you can guess what a function does just by reading its
+type annotation.
+
+```OCaml
+f : 'a list -> int -> 'a
+g : 'a -> 'a list -> bool
+h : 'a -> ('a * 'b) list -> 'b
+```
+
+# Type annotations are your friend!
+
+A lot of times you can guess what a function does just by reading its
+type annotation.
+
+* `f` is `nth` (return the nth element of a given list)
+* `g` is `mem` (returns whether an element is in a list)
+* `h` is `assoc` (treats list like a map, returns value associated with key)
+
 
 # Sorting algorithms
 
-## Insertsort
+* Insertsort, Mergesort, Quicksort
+* No need to mess with array indices
+* Intuitive implementations using recursion and folding
+
+# Insertsort
+* Repeatedly insert elements into a sorted sublist
+* Streaming algorithm
+
+# Insertsort
 How is `insert` defined?
 
 ```OCaml
@@ -276,29 +448,36 @@ let insertSort (l:int list) : int list =
 ;;
 ```
 
-## Insertsort
+# Insertsort
 ```OCaml
 let insertSort (l:int list) : int list =
-  let rec insert x il = begin match il with
-    [] -> [x]
-  | y::ys -> if x >= y then y::(insert x ys) else x::y::ys
+  let rec insert x il = begin
+    match il with
+    (* insert at the end of sorted sublist *)
+      [] -> [x]
+    (* insert at current position or recurse to rest of list *)
+    | y::ys -> if x >= y then y::(insert x ys) else x::y::ys
   end in
+  (* add elements one by one to acc, which is kept sorted *)
   List.fold_right insert l []
 ;;
 ```
 
-## Insertsort
+# Insertsort
 In Haskell:
 
 ```Haskell
-insertSort :: [Int] -> [Int]
+insertSort :: Ord a => [a] -> [a]
+-- add elements one by one to acc, which is kept sorted
 insertSort xs = foldr insert [] xs
+        -- insert at the end of sorted sublist
 	where insert x [] = [x]
+        -- insert at current position or recurse to rest of list
 	      insert x (y:ys) =
           if x >= y then y:(insert x ys) else x:y:ys
 ```
 
-## Executing insertsort
+# Executing insertsort
 ```Haskell
 insertSort [2,3,1,4]
 
@@ -308,12 +487,14 @@ insert 2 (foldr insert [] [3,1,4])
 
 insert 2 (insert 3 (foldr insert [] [1,4]))
 
-...
+insert 2 (insert 3 (insert 1 (foldr insert [] [4])))
 
-insert 2 (insert 3 (insert 1 (insert 4 [])
+insert 2 (insert 3 (insert 1 (insert 4 (foldr insert [] []))))
+
+insert 2 (insert 3 (insert 1 (insert 4 [])))
 ```
 
-## Executing insertsort
+# Executing insertsort
 ```Haskell
 insert 2 (insert 3 (insert 1 (insert 4 [])
 
@@ -328,7 +509,7 @@ insert 2 (1:[3,4])
 insert 2 [1,3,4]
 ```
 
-## Executing insertsort
+# Executing insertsort
 ```Haskell
 insert 2 [1,3,4]
 
@@ -339,8 +520,17 @@ insert 2 [1,3,4]
 [1,2,3,4]
 ```
 
-## Mergesort
+# Mergesort
+* Divide and conquer algorithm
+* Divide list into two sublists
+* Recursive sort sublists
+* Merge sorted sublists into one sorted list
+
+# Mergesort
 How to implement `merge`? (Assume `splitAt` is implemented; we'll go back to it)
+
+What happens if case `[x]` is not there?
+
 ```OCaml
 let rec mergeSort (l:int list) : int list =
   let rec merge xxs yys = ??? in
@@ -353,14 +543,17 @@ let rec mergeSort (l:int list) : int list =
 ;;
 ```
 
-## Mergesort
+# Mergesort
 ```OCaml
 let rec mergeSort (l:int list) : int list =
   let rec merge xxs yys = begin
     match (xxs,yys) with
       ([], []) -> []
+    (* right list is empty; rest of left is end of sorted list *)
     | (xs, []) -> xs
+    (* left list is empty; rest of right is end of sorted list *)
     | ([], ys) -> ys
+    (* pick lower head and recurse on the rest *)
     | (x::xs, y::ys) ->
         if x < y then x::(merge xs (y::ys))
                  else y::(merge (x::xs) ys)
@@ -369,30 +562,45 @@ let rec mergeSort (l:int list) : int list =
     [] -> []
   | [x] -> [x]
   | _ ->
+    (* split into two sublists *)
     let (left, right) = splitAt (List.length l / 2) l in
+    (* merge sorted sublists *)
     merge (mergeSort left) (mergeSort right)
 ;;
 ```
 
-## Mergesort
+# Mergesort
 ```Haskell
 mergeSort :: Ord a => [a] -> [a]
 mergeSort [] = []
-mergeSort l = merge (mergeSort left) (mergeSort right)
-  where (left, right) = splitAt (length xs `div` 2) xs
+mergeSort [x] = [x]
+mergeSort l =
+  -- merge sorted sublists
+  merge (mergeSort left) (mergeSort right)
+        -- split into two sublists
+  where (left, right) = splitAt (length l `div` 2) l
         merge [] [] = []
+        -- right list is empty; rest of left is end of sorted list
         merge xs [] = xs
+        -- left list is empty; rest of right is end of sorted list
         merge [] ys = ys
+        -- pick lower head and recurse on the rest
         merge (x:xs) (y:ys) =
           if x < y then x:(merge xs (y:ys))
                    else y:(merge (x:xs) ys)
 ```
 
-## Quicksort
+# Quicksort
+* Divide and conquer algorithm
+* Select a pivot element
+* Partition rest of list into two sublists: lower/eq and higher
+* Sort sublists and then append together with pivot
+
+# Quicksort
 How are `left` and `right` defined?
 
 ```OCaml
-let rec quicksort (l:int list) : int list =
+let rec quickSort (l:int list) : int list =
   match l with
     [] -> []
   | x::xs ->
@@ -402,54 +610,65 @@ let rec quicksort (l:int list) : int list =
 ;;
 ```
 
-## Quicksort
+# Quicksort
 ```OCaml
 let rec quicksort (l:int list) : int list =
   match l with
     [] -> []
   | x::xs ->
+    (* get lower/eq sublist *)
     let left = List.filter (fun y -> x >= y) xs in
+    (* get higher sublist *)
     let right = List.filter (fun y -> x < y) xs in
+    (* append into complete sorted list *)
     (quickSort left) @ [x] @ (quickSort right)
 ;;
 ```
 
-## Quicksort
+# Quicksort
 In Haskell:
 
 ```Haskell
 quickSort :: Ord a => [a] -> [a]
 quickSort [] = []
 quickSort (x:xs) =
+  -- append into complete sorted list
   (quickSort left) ++ [x] ++ (quickSort right)
-  where left = filter (x >=) xs
-        right = filter (x <) xs
+  where left = filter (x >=) xs -- get lower/eq sublist
+        right = filter (x <) xs -- get higher sublist
         
 ```
 
-## Quicksort with explicit partition
+# Quicksort with explicit partition
 In OCaml:
 ```OCaml
 let rec quickSort2 (l:int list) : int list =
   match l with
     [] -> []
   | x::xs ->
+    (* put element in the right sublist *)
     let part y (lo, hi) = if x >= y then (y::lo, hi) else (lo, y::hi) in
+    (* repeated put list elems into right sublist *)
     let partition lp = List.fold_right part lp ([],[]) in
+    (* create partition *)
     let (left, right) = partition xs in
+    (* append into complete sorted list *)
     (quickSort2 left) @ [x] @ (quickSort2 right)
 ;;
 ```
 
-## Quicksort with explicit partition
+# Quicksort with explicit partition
 In Haskell:
 ```Haskell
 quickSort2 :: Ord a => [a] -> [a]
 quickSort2 [] = []
 quickSort2 (x:xs) =
+  -- append into complete sorted list
   (quickSort2 left) ++ [x] ++ (quickSort2 right)
-  where (left, right) = partition xs
+  where (left, right) = partition xs -- create partition
+        -- repeated put list elems into right sublist
         partition = foldr part ([], [])
+        -- put element in the right sublist
         part y (low, hi) =
           if x >= y then (y:low, hi) else (low, y:hi)
 ```
@@ -457,8 +676,9 @@ quickSort2 (x:xs) =
 Notice the partial application for `partition`!
 
 # Practice Problems
+Put your functional programming knowledge to the test
 
-## Problem 1
+# Problem 1
 Implement `append` recursively. Don't use other functions!
 
 ```OCaml
@@ -467,18 +687,18 @@ let append (xxs:'a list) (yys:'a list) : 'a list = ??? ;;
 append [1;2;3] [4;5;6] = [1;2;3;4;5;6]
 ```
 
-## Problem 1 answer
+# Problem 1 answer
 Implement `append` recursively. Don't use other functions!
 
 ```OCaml
 let rec append (xxs:'a list) (yys:'a list) : 'a list =
   match xxs with
-    [] -> ys
-  | x::xs -> x::(append xs ys)
+    [] -> yys
+  | x::xs -> x::(append xs yys)
 ;;
 ```
 
-## Problem 1 answer
+# Problem 1 answer
 In Haskell:
 
 ```Haskell
@@ -487,7 +707,7 @@ append [] ys = ys
 append (x:xs) ys = x:(append xs ys)
 ```
 
-## Problem 2
+# Problem 2
 Implement `reverse` recursively. Don't use other functions!
 
 ```Haskell
@@ -496,7 +716,7 @@ let rec reverse (l:'a list) : 'a list = ??? ;;
 reverse [1;2;3;4;5] = [5;4;3;2;1]
 ```
 
-## Problem 2 answer
+# Problem 2 answer
 Implement `reverse` recursively. Don't use other functions!
 
 ```OCaml
@@ -504,15 +724,15 @@ let rec reverse (l:'a list) : 'a list =
   let rec insertBack y xxs = begin
     match xxs with
       [] -> [y]
-      x::xs -> x::(insertBack y xs)
+    | x::xs -> x::(insertBack y xs)
   end in
   match l with
     [] -> []
-    x::xs -> insertBack x (reverse xs)
+  | x::xs -> insertBack x (reverse xs)
 ;;
 ```
 
-## Problem 2 answer
+# Problem 2 answer
 In Haskell:
 
 ```Haskell
@@ -523,7 +743,7 @@ reverse (x:xs) = insertBack x (reverse xs)
         insertBack x (y:ys) = y:(insertBack x ys)
 ```
 
-## Problem 3
+# Problem 3
 Implement `treeSum`. (Hint: Remember how `preOrder` is implemented)
 
 ```OCaml
@@ -538,7 +758,7 @@ let rec treeSum (tree:int btree) : int = ??? ;;
 treeSum (Node (4, Leaf 5, NilLeaf)) = 9
 ```
 
-## Problem 3 answer
+# Problem 3 answer
 Implement `treeSum`.
 
 ```OCaml
@@ -557,7 +777,7 @@ let rec treeSum (tree:int btree) : int =
 
 ```
 
-## Problem 3 answer
+# Problem 3 answer
 In Haskell:
 
 ```Haskell
@@ -573,7 +793,7 @@ treeSum (Node x left right) =
   x + (treeSum left) + (treeSum right)
 ```
 
-## Problem 4
+# Problem 4
 Implement `unzip`.
 
 ```OCaml
@@ -582,17 +802,16 @@ let unzip (l:('a * 'b) list) : ('a list) * ('b list) = ??? ;;
 unzip [(1,"A");(2,"B");(3,"C")] = ([1;2;3], ["A";"B";"C"])
 ```
 
-## Problem 4 answer
+# Problem 4 answer
 Implement `unzip`.
 
 ```OCaml
 let unzip (l:('a * 'b) list) : ('a list) * ('b list) =
-  List.fold_right (fun (x,y) (xs,ys) -> (x::xs, y::ys)) l ([], [])
-;;
+  List.fold_right (fun (x,y) (xs,ys) -> (x::xs, y::ys)) l ([], []) ;;
 ```
 
 
-## Problem 4 answer
+# Problem 4 answer
 In Haskell:
 
 ```Haskell
@@ -601,7 +820,7 @@ unzip tups =
   foldr (\(x,y) (xs,ys) -> (x:xs, y:ys)) ([], []) tups
 ```
 
-## Problem 5
+# Problem 5
 Implement `splitAt`.
 
 ```OCaml
@@ -612,7 +831,7 @@ splitAt 0 [1;2;3;4] = ([], [1;2;3;4])
 splitAt 4 [1;2;3;4] = ([1;2;3;4], [])
 ```
 
-## Problem 5 answer
+# Problem 5 answer
 Implement `splitAt`.
 
 Common technique: define an "inner" function with explicit accumulator
@@ -631,7 +850,7 @@ let splitAt (n:int) (l:'a list) : ('a list) * ('a list) =
 ;;
 ```
 
-## Problem 5 answer
+# Problem 5 answer
 In Haskell:
 
 ```Haskell
@@ -643,7 +862,7 @@ splitAt n xs = splitAt_ n xs []
           splitAt_ (n-1) ys (acc ++ [y])
 ```
 
-## More Problems
+# More Problems
 * Implement some of the functions from the `List` module
     * Haskell: [https://hackage.haskell.org/package/base-4.8.2.0/docs/Data-List.html](https://hackage.haskell.org/package/base-4.8.2.0/docs/Data-List.html)
     * Ocaml: [http://caml.inria.fr/pub/docs/manual-ocaml/libref/List.html](http://caml.inria.fr/pub/docs/manual-ocaml/libref/List.html)
